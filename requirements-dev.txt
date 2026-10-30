@@ -1,0 +1,5 @@
+# 开发/打包才需要的依赖（普通用户装 requirements.txt 就够了）
+-r requirements.txt
+
+# 打包成 exe
+pyinstaller>=6.0

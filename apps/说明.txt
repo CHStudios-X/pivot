@@ -1,0 +1,58 @@
+枢 Pivot · 功能目录
+====================
+
+这里一个 .py 文件就是一个功能页。想精简软件，直接删文件即可：
+删掉哪个，底栏和主页卡片上就少哪一项，其余功能照常工作，不会出任何错误。
+
+    home.py        主页（工具网格）
+    clicker.py     连点器
+    keys.py        键盘连按（虚拟键盘）
+    remap.py       按键改绑
+    appearance.py  外观（壁纸与观感）
+    settings.py    设置（热键 / 安全中止）
+    update.py      检查更新（下载 / 校验 / 重启安装）
+    more.py        更多工具（占位卡片，没有页面）
+
+删光这个目录也没关系 —— 程序会显示一个提示页，告诉你往这里放回 .py 即可恢复。
+
+关于 update.py
+--------------
+删掉它只会少一个"手动检查更新"的入口。真正的更新逻辑在上一级的
+updater_core.py 里，那个**不能删**（删了程序起不来）。
+
+另外：如果你在更新前删掉了某些功能，程序会记住（记在上一级的
+_apps_state.json），升级时不会把它们偷偷装回来；本版新增的功能照常给你。
+
+想加功能
+--------
+新建一个 .py，写两样东西就行（照抄任意一个现有文件的结构）：
+
+    META = {
+        "id": "myfeat",          # 唯一标识
+        "name": "我的功能",       # 底栏与卡片上的名字
+        "nav": "我的功能",        # 底栏文案；填 None 就不进底栏
+        "order": 80,             # 排序
+        "card": True,            # 是否在主页出一张卡片
+        "builder": "_build_myfeat",   # 构建页面的方法名
+        "state": "page_myfeat",  # 页面挂到 App 的哪个属性上（兼容旧写法）
+    }
+
+    class Feature:               # 混入 App：方法里的 self 就是 App 实例
+        def _build_myfeat(self):
+            from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+            pg = QWidget()
+            lay = QVBoxLayout(pg)
+            lay.addWidget(QLabel("hello"))
+            return pg            # 必须返回页面控件
+
+可用的公共件（玻璃面板、胶囊按钮、开关、分段控件、工具图标、主题色等）
+都在上级目录的 pivot_kit.py 里，`from pivot_kit import ...` 直接取用。
+需要联网/版本比较/下载的话，上一级的 updater_core.py 也是可以直接 import 的。
+
+注意
+----
+· 上层的 pivot_kit.py、updater_core.py 和 pivot.py 是外壳与公共件，
+  不在这个目录里 —— 它们不能删。
+· 外壳优先加载"exe 同级的 apps 目录"（就是这个）；找不到时才用打包进 exe 的
+  那份兜底，所以只拷一个 exe 出去也能正常跑。
+· 某个文件写坏了（语法错、缺 META 等）只会让它自己被跳过，不影响其它功能。

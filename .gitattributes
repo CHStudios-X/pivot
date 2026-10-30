@@ -1,0 +1,20 @@
+# 默认按文本处理，检出时统一成 LF（避免跨平台 diff 噪音）
+* text=auto eol=lf
+
+# Windows 脚本必须是 CRLF，否则 PowerShell / Inno Setup 的解析可能出问题
+*.ps1  text eol=crlf
+*.bat  text eol=crlf
+*.iss  text eol=crlf
+*.cmd  text eol=crlf
+*.isl  text eol=crlf
+# 安装时作为 LicenseFile 展示，保持 CRLF（老记事本与 ISCC 都更稳）
+docs/用户协议.txt text eol=crlf
+
+# 二进制资源：禁止任何换行与编码转换
+*.ico  binary
+*.bmp  binary
+*.jpg  binary
+*.jpeg binary
+*.png  binary
+*.zip  binary
+*.exe  binary

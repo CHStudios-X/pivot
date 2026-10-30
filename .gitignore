@@ -1,0 +1,33 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+ENV/
+
+# ---------- 构建产物 ----------
+build/
+dist/
+# PyInstaller 每次构建都会重新生成，不必入库
+*.spec
+
+# ---------- 测试产物 ----------
+tests/_tmp/
+tests/_out/
+tests/_shots/
+*.log
+tests/*_stderr.txt
+
+# ---------- 运行时生成（本机痕迹，不该发给别人） ----------
+_apps_state.json
+
+# ---------- 编辑器 / 系统 ----------
+.vscode/
+.idea/
+*.swp
+*~
+Thumbs.db
+desktop.ini
+.DS_Store
