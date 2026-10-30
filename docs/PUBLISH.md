@@ -2,6 +2,25 @@
 
 以发布 `1.3.1` 为例，全程在仓库根目录执行。
 
+## 0. 首次开源前的一次性替换
+
+这份仓库是从本地工程整理出来的，有几处占位符要换成你自己的：
+
+| 位置 | 占位符 | 改成 |
+|---|---|---|
+| `README.md` | `你的账号`（下载链接与 clone 命令，共 2 处） | 你的 GitHub 用户名 |
+| `updater_core.py` | `REPLACE_ME`（2 处） | 账号名 |
+| `build.ps1` | `REPLACE_ME`（1 处） | 账号名 |
+| `LICENSE` | `CHStudios` | 你的名字或组织名 |
+| `installer.iss` | `MyAppPublisher` / `AppId` | 出品方名；AppId 换一个新的 GUID |
+
+```powershell
+# 全局搜一遍还有没有漏的
+git grep -n "REPLACE_ME\|你的账号"
+```
+
+改完记得 `git commit`，然后继续下面的流程。
+
 ## 1. 改版本号（只改一处）
 
 `pivot_kit.py`：

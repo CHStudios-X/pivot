@@ -41,7 +41,7 @@
 
 ## 下载
 
-到 [Releases](../../releases) 页下载最新版：
+到 **[Releases](https://github.com/你的账号/pivot/releases)** 页下载最新版：
 
 - **安装包** `Pivot_Setup_x.y.z.exe` —— 推荐。约 35 MB，用户级安装（装到 `%LOCALAPPDATA%\Programs\Pivot`），**不需要管理员权限**。
   安装时可勾选「以管理员身份运行运行」，全局热键需要它。
