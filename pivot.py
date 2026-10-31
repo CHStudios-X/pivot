@@ -2,7 +2,7 @@
 r"""
 枢 Pivot —— 外壳（Liquid Glass / iOS 26 风格）
 
-  源码\pivot.py         外壳：窗口骨架、闪屏、标题栏、底栏、热键、SER 通道，
+  源码\pivot.py         外壳：窗口骨架、闪屏、标题栏、底栏、热键，
                         以及**功能模块的容错装载**
   源码\pivot_kit.py   公共件：玻璃面板/按钮/开关/分段控件/键盘控件/主题常量
   源码\apps\            放功能：一个文件一个功能页
@@ -32,7 +32,6 @@ import json
 import math
 import os
 import sys
-import threading
 import time
 from ctypes import wintypes
 
@@ -41,7 +40,7 @@ import keyboard  # 全局热键
 
 from PySide6.QtCore import (
     Qt, QTimer, QPropertyAnimation, QEasingCurve, Property, Signal,
-    QPointF, QPoint, QRectF, QRect, QSize, QSettings, QVariantAnimation,
+    QPointF, QPoint, QRectF, QRect, QSize, QSettings,
 )
 from PySide6.QtGui import (
     QFont, QColor, QPainter, QPen, QBrush, QLinearGradient, QRadialGradient,
@@ -49,13 +48,12 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QLineEdit, QPushButton, QFrame, QProgressBar,
+    QLabel, QPushButton, QFrame, QProgressBar,
     QGraphicsOpacityEffect, QStackedWidget, QSlider, QScrollArea,
-    QFileDialog, QDialog,
 )
 
 from pivot_kit import (  # noqa: F401  (一批名字只为兼容旧引用与测试脚本)
-    APP_NAME, APP_NAME_EN, APP_VER, SER_VER, STUDIO_NAME, QSS,
+    APP_NAME, APP_NAME_EN, APP_VER, STUDIO_NAME, QSS,
     C_ACCENT_1, C_ACCENT_2, C_TEXT, C_TEXT_DIM, C_TEXT_FAINT,
     BUILTIN_WALLPAPER, _resolve_bg,
     GlassPanel, RiseFade, PillButton, PulseDot, SegmentedControl,
@@ -374,18 +372,7 @@ STUDIO_FAMS_MAIN = ("Bahnschrift SemiBold SemiCondensed", "Bahnschrift SemiBold"
 STUDIO_FAMS_SUB = ("Segoe UI Semilight", "Segoe UI Light", "Segoe UI")
 _STUDIO_FAM_CACHE = {}
 
-# ---- SER 更新通道彩蛋(1.2.4) ------------------------------------------
-# 底栏出品标记是入口:左键连点 EGG_CLICKS 次,弹出命令提示符风格的
-# 「CHStudios 更新控制台」;在控制台输入 SER_CODE 回车,更新过程逐行
-# 完整打印(含下载进度)。走完后本体切到 SER 通道,版本标识显示 1.2.ser。
-# 图标自 1.2.4 起**主图标本身就是纯黑底**(icon/app.ico),所以窗口 /
-# 任务栏 / 资源管理器里的文件图标天然一致;更新流程的图标步骤会拿
-# app_ser.ico 做比对,一致即判定"已是 SER"并跳过 —— 不会改动本体文件。
-# 更新状态写进注册表(ser_updated),重启后保留。功能与 1.2.4 完全一致。
 FOOTER_MARK_H = 16        # 底栏标记主字高(1.2.3 为 12,用户要求加大)
-EGG_CLICKS = 10           # 连点达标线
-EGG_RESET_MS = 3500       # 点击窗口:停顿超过此时长清零,防日常误触积累
-SER_CODE = "cher2001"     # 更新通道访问码(忽略大小写与首尾空白)
 
 
 def _studio_pick_family(names):
@@ -591,101 +578,27 @@ def draw_studio_mark(p, cx, cy, height, *, max_width=0,
 
 
 class StudioMark(QWidget):
-    """固定尺寸的出品方标记(底栏 / 设置页用)
+    """固定尺寸的出品方标记(底栏 / 设置页用)。
 
-    1.2.4 起兼任 SER 更新通道入口:左键连点 EGG_CLICKS 次(停顿超过
-    egg_reset_ms 清零)触发 egg_activated。每次点击,末尾那点光都会
-    「亮一下」—— 曲线与闪屏收尾是同一条 splash_spark_pulse,只是把
-    0→1 的脉冲进度映射进它的时间窗(0.64→0.92),不另写一套缓动。
+    纯展示控件:不响应鼠标,没有点击反馈 —— 它只是署名,不是按钮。
     """
 
-    egg_activated = Signal()
-
-    def __init__(self, height=12, alpha=150, parent=None,
-                 egg_reset_ms=EGG_RESET_MS):
+    def __init__(self, height=12, alpha=150, parent=None):
         super().__init__(parent)
         self._h = height
         self._a = alpha
         self.setFixedHeight(int(height * 1.9) + 2)
         self.setFixedWidth(studio_mark_widget_width(height))
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        # ---- 彩蛋连点 ----
-        self._clicks = 0
-        self._egg_reset_ms = max(200, int(egg_reset_ms))
-        self._reset_timer = QTimer(self)
-        self._reset_timer.setSingleShot(True)
-        self._reset_timer.setInterval(self._egg_reset_ms)
-        self._reset_timer.timeout.connect(self._reset_clicks)
-        # ---- 点击时的光点脉冲 ----
-        self._spark_t = 0.0
-        self._spark_on = False
-        self._spark_gain = 1.0
-        self._spark_anim = None
 
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-        kw = {}
-        if self._spark_on:
-            sc, gain = splash_spark_pulse(0.64 + 0.28 * self._spark_t)
-            kw["spark_scale"] = sc
-            kw["spark_alpha"] = min(319, int(255 * gain * self._spark_gain))
         draw_studio_mark(p, self.width() / 2.0, self.height() / 2.0, self._h,
                          max_width=self.width() - 8.0,
                          # 副字比传入值略亮一档 —— 12px 下再按比例压暗就糊成灰条了
                          letter_alpha=min(255, int(self._a * 1.08)),
-                         mark_alpha=min(255, int(self._a * 1.75)), **kw)
-
-    # ---------- 彩蛋连点 ----------
-    def mousePressEvent(self, e):
-        if e.button() == Qt.MouseButton.LeftButton:
-            self._bump()
-        super().mousePressEvent(e)
-
-    def _bump(self):
-        self._clicks += 1
-        self._reset_timer.start()
-        if self._clicks >= EGG_CLICKS:
-            self._reset_clicks()
-            self._pulse(1.0)          # 达标:满强度「亮一下」
-            self.egg_activated.emit()
-        else:
-            self._pulse(0.55)         # 半途:轻微一闪,能感知但不出戏
-
-    def _reset_clicks(self):
-        self._clicks = 0
-        self._reset_timer.stop()
-
-    def remaining_clicks(self):
-        """距离触发还差几下(回归脚本用)"""
-        return max(0, EGG_CLICKS - self._clicks)
-
-    # ---------- 光点脉冲 ----------
-    def _pulse(self, gain=1.0):
-        if self._spark_anim is not None:
-            self._spark_anim.stop()
-        self._spark_gain = max(0.05, float(gain))
-        anim = QVariantAnimation(self)
-        anim.setStartValue(0.0)
-        anim.setEndValue(1.0)
-        anim.setDuration(420)
-        anim.valueChanged.connect(self._on_pulse_step)
-        anim.finished.connect(self._on_pulse_done)
-        self._spark_anim = anim
-        self._spark_on = True
-        self._spark_t = 0.0
-        self.update()
-        anim.start()
-
-    def _on_pulse_step(self, v):
-        self._spark_t = float(v)
-        self.update()
-
-    def _on_pulse_done(self):
-        self._spark_on = False
-        self._spark_anim = None
-        self.update()
+                         mark_alpha=min(255, int(self._a * 1.75)))
 
 
 # 工具注册表已改由功能模块自己声明：想加一个工具，就在 apps\ 里放一个文件，
@@ -1131,634 +1044,6 @@ class WinBtn(QPushButton):
             p.drawLine(cx - 4, cy + 5, cx + 4, cy - 3)
 
 
-# ============================================================================
-# SER 更新通道彩蛋(1.2.4):命令提示符风格的更新控制台
-# ============================================================================
-
-def check_ser_code(text):
-    """访问码校验:忽略首尾空白与大小写( cher2001 )"""
-    return (text or "").strip().lower() == SER_CODE
-
-
-# ---------- 本体文件图标自替换(1.2.4) --------------------------------
-# exe 文件的图标是打包时烧进 PE 资源段的:运行时 setWindowIcon 只换
-# 窗口/任务栏,资源管理器里看到的文件图标不会变。这里保留一条「自改写」
-# 通路:复制本体 → 用 UpdateResourceW 改写副本的图标资源 → 原位换回。
-# 运行中的 exe 不能被覆盖,但**可以改名**(Windows 允许给运行中的映像
-# 改名)—— 于是先把旧本体改名成 <exe>.old,再把改好图标的副本挪回原名。
-# .old 备份留到下一次本体成功启动后自动清理;万一改写后的本体起不来,
-# .old 就是退路,手动改名回去即可。
-#
-# 注:1.2.4 起主图标本身就是纯黑底,打包出的 exe 图标资源天然与
-# app_ser.ico 一致 —— 所以这条通路通常**直接判定"已是 SER"并跳过**,
-# 不触碰本体文件;只有本体图标被换回(或来自更早的紫底构建)时才真正改写。
-#
-# ⚠ 踩坑(1.2.4 首次实现时):UpdateResourceW / EndUpdateResourceW 只写回
-#   PE 映像,会**丢弃尾部附加数据** —— PyInstaller onefile 的自解压归档
-#   恰好挂在文件尾部,一改写就被截成 300 多 KB、彻底打不开。现在改写完
-#   必须把 overlay 原样接回并校验体积,塌陷即放弃换名(见 patch_exe_icon
-#   与 swap_exe_icon_to_ser)。
-
-_RT_ICON = 3
-_RT_GROUP_ICON = 14
-_LOAD_LIBRARY_AS_DATAFILE = 0x00000002
-
-
-def _parse_ico(data):
-    """解析 .ico 字节 → ([(宽,高,色数,保留,位面数,位深,字节数)...],
-    [每帧图像字节,...])。目录里的偏移字段换成资源 id 在调用方拼。"""
-    import struct
-    _rsv, _typ, cnt = struct.unpack_from("<HHH", data, 0)
-    entries, frames = [], []
-    for i in range(cnt):
-        off = 6 + 16 * i
-        w, h, cc, rsv, planes, bits, size, imgoff = struct.unpack_from(
-            "<BBBBHHII", data, off)
-        entries.append((w, h, cc, rsv, planes, bits, size))
-        frames.append(data[imgoff:imgoff + size])
-    return entries, frames
-
-
-def _k32_icon_api():
-    """带完整原型声明的 kernel32 图标资源 API。
-
-    必须显式声明:LoadLibraryExW 的返回值是 64 位模块句柄,不声明
-    restype 会被 ctypes 按 32 位 c_int 截断 —— 截断后的句柄一传给
-    EnumResourceNamesW 就静默失败,枚举永远是 0(踩过:首次实现漏了
-    这一步,RT_ICON 枚举为空,patch 直接 0 帧)。
-    """
-    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    k32.LoadLibraryExW.restype = wintypes.HMODULE
-    k32.LoadLibraryExW.argtypes = [wintypes.LPCWSTR, wintypes.HANDLE,
-                                   wintypes.DWORD]
-    k32.EnumResourceNamesW.restype = wintypes.BOOL
-    k32.EnumResourceNamesW.argtypes = [
-        wintypes.HMODULE, ctypes.c_void_p,
-        _ENUMRESNAMEPROC, ctypes.c_void_p]
-    k32.FreeLibrary.restype = wintypes.BOOL
-    k32.FreeLibrary.argtypes = [wintypes.HMODULE]
-    k32.BeginUpdateResourceW.restype = wintypes.HANDLE
-    k32.BeginUpdateResourceW.argtypes = [wintypes.LPCWSTR, wintypes.BOOL]
-    k32.UpdateResourceW.restype = wintypes.BOOL
-    k32.UpdateResourceW.argtypes = [
-        wintypes.HANDLE, ctypes.c_void_p, ctypes.c_void_p,
-        wintypes.WORD, ctypes.c_void_p, wintypes.DWORD]
-    k32.EndUpdateResourceW.restype = wintypes.BOOL
-    k32.EndUpdateResourceW.argtypes = [wintypes.HANDLE, wintypes.BOOL]
-    return k32
-
-
-_ENUMRESNAMEPROC = ctypes.WINFUNCTYPE(
-    wintypes.BOOL, wintypes.HMODULE, ctypes.c_void_p,
-    ctypes.c_void_p, ctypes.c_void_p)
-
-
-def _enum_icon_names(exe_path):
-    """枚举 exe 现有的图标资源名(整数 id 或字符串名),返回 (icon, group)"""
-    k32 = _k32_icon_api()
-
-    def _make(bucket):
-        def cb(_hmod, _typ, name, _lp):
-            v = ctypes.cast(name, ctypes.c_void_p).value or 0
-            bucket.append(int(v) if v < 0x10000
-                          else ctypes.wstring_at(v))
-            return True
-        return _ENUMRESNAMEPROC(cb)
-
-    hmod = k32.LoadLibraryExW(str(exe_path), None,
-                              _LOAD_LIBRARY_AS_DATAFILE)
-    if not hmod:
-        return [], []
-    icons, groups = [], []
-    try:
-        k32.EnumResourceNamesW(hmod, ctypes.c_void_p(_RT_ICON),
-                               _make(icons), None)
-        k32.EnumResourceNamesW(hmod, ctypes.c_void_p(_RT_GROUP_ICON),
-                               _make(groups), None)
-    finally:
-        k32.FreeLibrary(hmod)
-    return icons, groups
-
-
-def _pe_image_end(raw):
-    """返回 PE 映像在文件里结束的偏移(各节 RawPtr+RawSize 的最大值)。
-
-    这个偏移之后的字节是「附加数据」(overlay):PyInstaller onefile 的
-    CArchive 自解压载荷就挂在那儿,占整个文件的 99%。
-
-    解析失败返回 0(调用方按「没有附加数据」处理)。
-    """
-    import struct
-    if len(raw) < 0x40:
-        return 0
-    try:
-        e = struct.unpack_from("<I", raw, 0x3C)[0]
-        if e + 24 > len(raw) or raw[e:e + 4] != b"PE\0\0":
-            return 0
-        nsec = struct.unpack_from("<H", raw, e + 6)[0]
-        optsz = struct.unpack_from("<H", raw, e + 20)[0]
-        sec = e + 24 + optsz
-        end = 0
-        for i in range(nsec):
-            o = sec + i * 40
-            if o + 40 > len(raw):
-                return 0
-            end = max(end,
-                      struct.unpack_from("<I", raw, o + 20)[0]
-                      + struct.unpack_from("<I", raw, o + 16)[0])
-        return end
-    except struct.error:
-        return 0
-
-
-def _read_icon_resource(exe_path, res_id=1):
-    """读出 exe 里 RT_ICON #res_id 的原始字节;读不到返回 None。"""
-    k32 = _k32_icon_api()
-    k32.FindResourceW.restype = wintypes.HRSRC
-    k32.FindResourceW.argtypes = [wintypes.HMODULE, ctypes.c_void_p,
-                                  ctypes.c_void_p]
-    k32.SizeofResource.restype = wintypes.DWORD
-    k32.SizeofResource.argtypes = [wintypes.HMODULE, wintypes.HRSRC]
-    k32.LoadResource.restype = wintypes.HGLOBAL
-    k32.LoadResource.argtypes = [wintypes.HMODULE, wintypes.HRSRC]
-    k32.LockResource.restype = ctypes.c_void_p
-    k32.LockResource.argtypes = [wintypes.HGLOBAL]
-    hmod = k32.LoadLibraryExW(str(exe_path), None,
-                              _LOAD_LIBRARY_AS_DATAFILE)
-    if not hmod:
-        return None
-    try:
-        hres = k32.FindResourceW(hmod, ctypes.c_void_p(res_id),
-                                 ctypes.c_void_p(_RT_ICON))
-        if not hres:
-            return None
-        size = int(k32.SizeofResource(hmod, hres) or 0)
-        ptr = k32.LockResource(k32.LoadResource(hmod, hres))
-        if not size or not ptr:
-            return None
-        buf = ctypes.create_string_buffer(size)
-        ctypes.memmove(buf, ctypes.c_void_p(ptr), size)
-        return bytes(buf.raw[:size])
-    finally:
-        k32.FreeLibrary(hmod)
-
-
-def _exe_icon_is_ser(exe_path, ico_path):
-    """本体 exe 的文件图标是否已经是纯黑底 SER 变体。
-
-    按真实资源字节判断,不看注册表标志 —— 标志会说谎(exe 被换回旧版、
-    或上次改写中途失败,标志却还留着 true),这里只认实际内容。
-    """
-    try:
-        with open(ico_path, "rb") as f:
-            frames = _parse_ico(f.read())[1]
-    except (OSError, ValueError):
-        return False
-    if not frames:
-        return False
-    return _read_icon_resource(exe_path) == frames[0]
-
-
-def patch_exe_icon(exe_path, ico_path):
-    """把 exe_path 的图标资源整体替换为 ico_path 的内容。
-
-    成功返回写入的帧数(>0),失败返回 0。只动 RT_ICON / RT_GROUP_ICON,
-    版本信息等其它资源原样保留;资源组沿用原 exe 的组名 —— 任务栏与
-    快捷方式都按它解析,换内容不动名字。
-
-    ⚠ UpdateResource 系列 API **只写回 PE 映像**:文件尾部的附加数据
-    (PyInstaller onefile 的 CArchive)会被整块丢弃,而且它重建的 .rsrc
-    比原来的更紧凑 —— 实测 46.5MB 的本体被截成 328KB,截完直接起不来
-    (1.2.4 首个构建就栽在这里)。所以这里先把映像末尾量出来、把附加
-    数据整段记下来,写完再原样接回去,并校验接回成功。
-    """
-    import struct
-    k32 = _k32_icon_api()
-    try:
-        with open(exe_path, "rb") as f:
-            orig = f.read()
-        with open(ico_path, "rb") as f:
-            ico = f.read()
-        entries, frames = _parse_ico(ico)
-    except (OSError, ValueError):
-        return 0
-    if not frames:
-        return 0
-
-    img_end = _pe_image_end(orig)
-    overlay = orig[img_end:] if img_end and img_end < len(orig) else b""
-
-    icons, groups = _enum_icon_names(exe_path)
-    grp_name = groups[0] if groups else 1
-
-    def _name_arg(v):
-        # 整数资源 id 按 MAKEINTRESOURCE 传值;字符串名传 wchar 指针。
-        # keep 持有临时对象,保证指针在调用期间有效。
-        if isinstance(v, int):
-            return ctypes.c_void_p(v), None
-        keep = ctypes.c_wchar_p(v)
-        return ctypes.cast(keep, ctypes.c_void_p), keep
-
-    hup = k32.BeginUpdateResourceW(str(exe_path), False)
-    if not hup:
-        return 0
-    ended = False
-    try:
-        for old in icons:                     # 先删旧图标(传 NULL 即删除)
-            arg, keep = _name_arg(old)
-            k32.UpdateResourceW(hup, ctypes.c_void_p(_RT_ICON), arg,
-                                0, None, 0)
-        for old in groups:
-            arg, keep = _name_arg(old)
-            k32.UpdateResourceW(hup, ctypes.c_void_p(_RT_GROUP_ICON),
-                                arg, 0, None, 0)
-        for i, frame in enumerate(frames, start=1):
-            buf = ctypes.create_string_buffer(frame, len(frame))
-            if not k32.UpdateResourceW(hup, ctypes.c_void_p(_RT_ICON),
-                                       ctypes.c_void_p(i), 0, buf,
-                                       len(frame)):
-                raise OSError("UpdateResource(RT_ICON) failed")
-        # GRPICONDIR: 6B 头 + 每帧 14B 目录项(nID 从 1 起)
-        dirbuf = struct.pack("<HHH", 0, 1, len(frames))
-        for i, (w, h, cc, rsv, planes, bits, size) in enumerate(
-                entries, start=1):
-            dirbuf += struct.pack("<BBBBHHIH", w, h, cc, rsv, planes,
-                                  bits, size, i)
-        gbuf = ctypes.create_string_buffer(dirbuf, len(dirbuf))
-        arg, keep = _name_arg(grp_name)
-        if not k32.UpdateResourceW(hup, ctypes.c_void_p(_RT_GROUP_ICON),
-                                   arg, 0, gbuf, len(dirbuf)):
-            raise OSError("UpdateResource(RT_GROUP_ICON) failed")
-        if not k32.EndUpdateResourceW(hup, False):
-            raise OSError("EndUpdateResource failed")
-        ended = True
-    except OSError:
-        if not ended:
-            k32.EndUpdateResourceW(hup, True)   # 改写失败:回滚,不留半成品
-        return 0
-
-    # ---- 把附加数据接回文件尾部(API 只写了映像那一部分) ----
-    if overlay:
-        try:
-            with open(exe_path, "rb") as f:
-                cur = f.read()
-            if not cur.endswith(overlay):
-                with open(exe_path, "ab") as f:
-                    f.write(overlay)
-                with open(exe_path, "rb") as f:
-                    cur = f.read()
-            if not cur.endswith(overlay):
-                raise OSError("附加归档未能接回")
-        except OSError:
-            return 0                    # 调用方在副本上操作,丢弃副本即可
-    return len(frames)
-
-
-def swap_exe_icon_to_ser():
-    """把当前运行中的本体 exe 文件图标换成纯黑底 SER 变体。
-
-    返回 (状态, 说明):
-      ("ok",   "已备份为 <exe>.old · 图标 ×N")   替换完成,下次启动生效
-      ("skip", ...)                             源码模式 / 图标已是 SER
-      ("fail", 原因)                             权限/占用等,不影响软件功能
-
-    安全守则(1.2.4 踩坑后加的):改写只在**副本**上做,做完先验体积,
-    体积塌陷就直接放弃、绝不换名 —— 宁可图标不换,也不能把本体写成
-    一个起不来的残废文件。
-    """
-    exe = sys.executable if getattr(sys, "frozen", False) else None
-    if not exe or not exe.lower().endswith(".exe"):
-        return "skip", "源码模式运行,跳过本体文件图标替换"
-    ico = _res_path(os.path.join("icon", "app_ser.ico"))
-    if not os.path.exists(ico):
-        return "fail", "找不到 SER 图标资源 (app_ser.ico)"
-    if _exe_icon_is_ser(exe, ico):
-        return "skip", "本体文件图标已是纯黑底 SER 变体"
-    _dir = os.path.dirname(os.path.abspath(exe))
-    if not os.access(_dir, os.W_OK):
-        return "fail", f"本体所在目录不可写,需管理员权限 ({_dir})"
-    new, old = exe + ".ser_new", exe + ".old"
-    for p in (new, old):
-        if os.path.exists(p):
-            try:
-                os.remove(p)                  # 清掉上次残留
-            except OSError:
-                pass
-    try:
-        import shutil
-        shutil.copy2(exe, new)
-        n = patch_exe_icon(new, ico)
-        if not n:
-            raise OSError("图标资源改写失败")
-        sz_src, sz_new = os.path.getsize(exe), os.path.getsize(new)
-        if sz_new < sz_src * 0.9:              # 附加归档没接回去的信号
-            raise OSError(f"改写后体积异常({sz_new} < {sz_src}),已放弃")
-        os.rename(exe, old)                   # 运行中不能覆盖,但可以改名
-        os.rename(new, exe)
-        return "ok", (f"已备份为 {os.path.basename(old)}"
-                      f" · 图标 ×{n}")
-    except OSError as e:
-        try:                                  # 尽力回滚:本体必须保持原名
-            if os.path.exists(old) and not os.path.exists(exe):
-                os.rename(old, exe)
-        except OSError:
-            pass
-        try:
-            if os.path.exists(new):
-                os.remove(new)
-        except OSError:
-            pass
-        return "fail", str(e)
-
-
-class TermWindow(QDialog):
-    """命令提示符风格的更新控制台(底栏标记连点 EGG_CLICKS 次弹出)。
-
-    视觉对齐 Windows 控制台:#0C0C0C 黑底 + 浅灰等宽字 + 原生标题栏。
-    输入 SER_CODE 回车后,更新过程逐行完整打印(下载一行做进度动画),
-    打到「√ 更新完成」时发 updated —— App 收到后切到 1.2.ser 通道
-    (版本标识 + 纯黑底图标)。全程本机演示,不联网。
-
-    窗口生命周期:中途关窗 = 流程作废,下次打开清空重来;走完后重开
-    则保留完整更新记录,输入行收起。
-    """
-
-    updated = Signal()
-
-    TERM_BG = "#0C0C0C"
-    TERM_FG = "#CCCCCC"
-    TERM_DIM = "#8A8A8A"
-    TERM_OK = "#16C60C"
-    PROG_W = 22              # 进度条格数
-
-    def __init__(self, parent=None, already_ser=False):
-        super().__init__(parent)
-        self.setWindowTitle("CHStudios 更新控制台")
-        self.setModal(False)
-        self.resize(700, 440)
-        self.setMinimumSize(QSize(560, 360))
-        self.setStyleSheet(f"background-color: {self.TERM_BG};")
-
-        self._mono = QFont("Consolas", 10)
-        self._already_ser = already_ser
-        self._greeted = False      # banner 只在日志为空时打
-        self._busy = False         # 更新流程进行中(禁止再输指令)
-        self._done = False         # 更新流程已走完
-        self._steps = []           # 待执行队列 [(延时ms, 类型, 数据, 颜色)]
-        self._prog_anim = None
-        self._prog_lab = None
-
-        self._step_timer = QTimer(self)
-        self._step_timer.setSingleShot(True)
-        self._step_timer.timeout.connect(self._print_next)
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(0)
-
-        # ---------------- 日志区(黑底等宽,逐行 QLabel) ----------------
-        # 逐行 QLabel 而不是 QPlainTextEdit:下载进度那一行要原位刷新,
-        # 且不同行可以给不同颜色,QTextEdit 里做这两件事都别扭。
-        self._scroll = QScrollArea()
-        self._scroll.setWidgetResizable(True)
-        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
-        self._scroll.setStyleSheet(
-            f"QScrollArea {{ background: {self.TERM_BG}; border: none; }}")
-        host = QWidget()
-        host.setStyleSheet(f"background: {self.TERM_BG};")
-        self._log_lay = QVBoxLayout(host)
-        self._log_lay.setContentsMargins(14, 12, 14, 10)
-        self._log_lay.setSpacing(3)
-        self._log_lay.addStretch(1)      # 行数少时顶格排,空当留给底部
-        self._scroll.setWidget(host)
-        root.addWidget(self._scroll, 1)
-
-        # ---------------- 输入行:提示符 + 内联输入框 ----------------
-        row = QWidget()
-        row.setStyleSheet(f"background: {self.TERM_BG};")
-        rl = QHBoxLayout(row)
-        rl.setContentsMargins(14, 2, 14, 12)
-        rl.setSpacing(0)
-        self.prompt_lbl = QLabel("C:\\CHStudios> ")
-        self._style_term_label(self.prompt_lbl, self.TERM_FG)
-        rl.addWidget(self.prompt_lbl)
-        self.input = QLineEdit()
-        self.input.setFont(self._mono)
-        self.input.setFrame(False)
-        self.input.setStyleSheet(
-            "QLineEdit { background: transparent; border: none; "
-            f"color: {self.TERM_FG}; font-family: Consolas, monospace; "
-            "font-size: 13px; selection-background-color: #3B7DD8; }")
-        self.input.returnPressed.connect(self._submit)
-        rl.addWidget(self.input, 1)
-        root.addWidget(row)
-
-    # ---------- 终端输出 ----------
-    def _style_term_label(self, lab, color):
-        lab.setFont(self._mono)
-        lab.setStyleSheet(f"color: {color}; background: transparent;")
-        lab.setTextInteractionFlags(
-            Qt.TextInteractionFlag.TextSelectableByMouse)
-
-    def _add_line(self, text="", color=None):
-        lab = QLabel(text)
-        self._style_term_label(lab, color or self.TERM_FG)
-        # 插在 stretch 之前,保持内容顶格
-        self._log_lay.insertWidget(self._log_lay.count() - 1, lab)
-        self._scroll_bottom()
-        QTimer.singleShot(0, self._scroll_bottom)
-        return lab
-
-    def _scroll_bottom(self):
-        try:
-            sb = self._scroll.verticalScrollBar()
-            sb.setValue(sb.maximum())
-        except RuntimeError:
-            pass
-
-    def _reset_log(self):
-        """清空日志(中途关窗作废,下次打开重新走)"""
-        while self._log_lay.count() > 1:          # 末位是 stretch
-            item = self._log_lay.takeAt(0)
-            w = item.widget()
-            if w is not None:
-                w.deleteLater()
-        self._greeted = False
-        self._busy = False
-        self.input.setEnabled(True)
-        self.prompt_lbl.setVisible(True)
-
-    # ---------- 访问码 ----------
-    def _submit(self):
-        if self._busy or not self.input.isEnabled():
-            return
-        txt = self.input.text().strip()
-        self.input.clear()
-        if not txt:
-            return
-        self._add_line(f"C:\\CHStudios> {txt}")
-        if check_ser_code(txt):
-            self._add_line("访问码校验... 通过")
-            self._start_update()
-        else:
-            self._add_line(f"‘{txt}’ 不是有效访问码,请检查后重新输入。")
-            self._scroll_bottom()
-
-    # ---------- 更新流程 ----------
-    def _start_update(self):
-        """逐行打印更新过程;单发定时器串步进,行间留呼吸不刷屏"""
-        self._busy = True
-        self.input.setEnabled(False)
-        self.prompt_lbl.setVisible(False)
-        self._steps = [
-            (260, "line", "正在初始化更新环境... 完成", None),
-            (300, "line", "正在检查运行状态... 连点器空闲", None),
-            (300, "line", "正在备份用户配置... 完成 (HKCU\\Software\\Pivot)",
-             None),
-            (320, "line", "正在连接更新服务器... 已连接 (SER 通道 · 本机镜像)",
-             None),
-            (240, "prog", "正在下载增量包 pivot_ser_1.3.pkg", None),
-            (300, "line", "正在校验包完整性... SHA-256 OK", None),
-            (260, "line", "正在解包资源文件... 完成", None),
-            (300, "patch", None, None),
-            (320, "line",
-             f"正在更新版本标识: {APP_VER} → {SER_VER} ... 完成", None),
-            (260, "line", "正在清理临时文件... 完成", None),
-            (430, "gap", None, None),
-            (30, "line", f"√ 更新完成 — 当前版本 {SER_VER}", self.TERM_OK),
-            (60, "emit", None, None),
-            (340, "line",
-             "  本版本功能与 1.2.4 保持一致,新特性将在后续版本逐步开放。",
-             self.TERM_DIM),
-            (300, "line", "  更新状态已写入本机,重启后保留。", self.TERM_DIM),
-            (380, "note", "窗口将在 4 秒后自动关闭,也可直接关闭本窗口。", None),
-            (4200, "close", None, None),
-        ]
-        self._step_timer.start(180)
-
-    def _print_next(self):
-        if not self._steps:
-            return
-        delay, kind, data, color = self._steps.pop(0)
-        if kind == "line":
-            self._add_line(data, color)
-            self._step_timer.start(delay)
-        elif kind == "gap":
-            self._add_line()
-            self._step_timer.start(delay)
-        elif kind == "note":
-            self._add_line(data, color or self.TERM_DIM)
-            self._step_timer.start(delay)
-        elif kind == "emit":
-            # 先切本体再打收尾说明:关窗前版本标识已经变过来了
-            self.updated.emit()
-            self._step_timer.start(delay)
-        elif kind == "close":
-            self._done = True
-            self.close()
-        elif kind == "patch":
-            self._run_patch()
-        elif kind == "prog":
-            self._run_progress(data)
-            # 进度动画结束(_on_prog_done)后再续队列,这里不排程
-
-    def _run_patch(self):
-        """真正改写本体文件图标:备份 → 改写副本 → 原位换回,逐行打印。
-
-        与「下载/校验」等演示行不同,这一步是真实落盘操作 —— 改写的是
-        当前正在运行的这个 exe 文件的图标资源,让资源管理器里看到的
-        文件图标也变成纯黑底(运行时换 QIcon 做不到这一点)。
-        """
-        if not getattr(sys, "frozen", False):
-            self._add_line("正在替换本体文件图标... 完成 (纯黑底 · SER)")
-            self._step_timer.start(300)
-            return
-        self._add_line("正在替换本体文件图标 (纯黑底 · SER) ...")
-        st, msg = swap_exe_icon_to_ser()
-        if st in ("ok", "skip"):
-            self._add_line(f"  • {msg}", self.TERM_DIM)
-            if st == "ok":
-                self._add_line("  • 图标资源改写完成,资源管理器即用此图标",
-                               self.TERM_DIM)
-                self._add_line("  • 已原位换回本体,下次启动即生效",
-                               self.TERM_DIM)
-            try:
-                settings_store().setValue("icon_patched", "true")
-            except Exception:
-                pass
-        else:
-            self._add_line(f"  ! 本体文件图标替换未完成 ({msg})", "#E7B100")
-            self._add_line(
-                "    软件功能不受影响;窗口/任务栏图标已同步为纯黑底。",
-                self.TERM_DIM)
-        self._step_timer.start(360)
-
-    def _run_progress(self, prefix):
-        """下载行:同一行原位刷新 [####----] 42%,走完再续后面的步骤"""
-        self._prog_lab = self._add_line(prefix)
-        anim = QVariantAnimation(self)
-        anim.setStartValue(0.0)
-        anim.setEndValue(1.0)
-        anim.setDuration(1500)
-        anim.valueChanged.connect(self._on_prog_tick)
-        anim.finished.connect(self._on_prog_done)
-        self._prog_anim = anim
-        anim.start()
-
-    def _on_prog_tick(self, v):
-        try:
-            n = int(float(v) * self.PROG_W)
-            bar = "█" * n + "-" * (self.PROG_W - n)
-            self._prog_lab.setText(
-                f"正在下载增量包 pivot_ser_1.3.pkg [{bar}] "
-                f"{int(float(v) * 100):3d}%")
-        except RuntimeError:
-            pass
-
-    def _on_prog_done(self):
-        try:
-            full = "█" * self.PROG_W
-            self._prog_lab.setText(
-                f"正在下载增量包 pivot_ser_1.3.pkg [{full}] 100%")
-        except RuntimeError:
-            return
-        self._step_timer.start(240)
-
-    # ---------- 窗口行为 ----------
-    def _greet(self):
-        self._add_line("CHStudios 更新控制台 [版本 1.2.4.0]")
-        self._add_line("(c) 2026 CHStudios。保留所有权利。")
-        self._add_line()
-        if self._already_ser:
-            self._add_line(f"当前版本: {SER_VER}")
-            self._add_line("已是最新,没有可用的更新。")
-            self.input.setEnabled(False)
-            self.prompt_lbl.setVisible(False)
-        else:
-            self._add_line(f"检测到当前版本: {APP_VER}")
-            self._add_line(f"可用更新: {SER_VER} (SER 通道 · 内部)")
-            self._add_line()
-            self._add_line("输入访问码并回车以开始更新。", self.TERM_DIM)
-
-    def showEvent(self, e):
-        super().showEvent(e)
-        if not self._greeted:
-            self._greeted = True
-            self._greet()
-        self.input.setFocus()
-        self._scroll_bottom()
-
-    def closeEvent(self, e):
-        self._step_timer.stop()
-        if self._prog_anim is not None:
-            try:
-                self._prog_anim.stop()
-            except RuntimeError:
-                pass
-        if not self._done:
-            self._reset_log()          # 中途关窗:流程作废,重来
-        super().closeEvent(e)
-
 class App(*_FEATURE_BASES, QWidget):
     """外壳窗口。
 
@@ -1824,10 +1109,6 @@ class App(*_FEATURE_BASES, QWidget):
             self._settings.value("failsafe", "true")) == "true"
         # 壁纸与观感
         self._root_ready = False
-        # SER 通道状态(更新彩蛋,持久化;1.2.ser 只换标识与图标,功能不变)
-        self._ser = str(
-            self._settings.value("ser_updated", "false")) == "true"
-        self._disp_ver = SER_VER if self._ser else APP_VER
 
         self._build_ui()
         self._root.set_background(self._settings.value("bg_path"))
@@ -1840,9 +1121,6 @@ class App(*_FEATURE_BASES, QWidget):
         restore = getattr(self, "_apply_remaps", None)
         if restore is not None:
             restore()
-        if self._ser:
-            self._apply_ser_mode()
-            self._ser_icon_housekeeping()
 
         # 光标光泽:轮询全局鼠标位置驱动玻璃高光。
         # 鼠标不动就完全跳过重绘,否则静止时也在白烧 CPU。
@@ -2247,7 +1525,7 @@ class App(*_FEATURE_BASES, QWidget):
         lay = QHBoxLayout(w)
         lay.setContentsMargins(2, 0, 2, 0)
         lay.setSpacing(6)
-        ver = QLabel(f"v{self._disp_ver}")
+        ver = QLabel(f"v{APP_VER}")
         ver.setObjectName("verSmall")
         self.ver_label = ver
         lay.addWidget(ver)
@@ -2263,12 +1541,9 @@ class App(*_FEATURE_BASES, QWidget):
             lay.addWidget(t)
             self.nav_tabs[fid] = t
         lay.addStretch()
-        # 出品方标记(取代了原来的用户胶囊)。1.2.4 起加大一档,
-        # 并兼任 SER 更新通道入口:连点 EGG_CLICKS 次 → 弹出更新控制台
+        # 出品方标记(取代了原来的用户胶囊)。1.2.4 起加大一档。
         self.studio_mark = StudioMark(FOOTER_MARK_H, 150)
-        self.studio_mark.setToolTip(
-            f"Made by {STUDIO_NAME}\n(它似乎对连点很有兴趣…)")
-        self.studio_mark.egg_activated.connect(self._open_terminal)
+        self.studio_mark.setToolTip(f"Made by {STUDIO_NAME}")
         lay.addWidget(self.studio_mark, 0, Qt.AlignmentFlag.AlignVCenter)
         self._bottom_lay = lay
         return w
@@ -2289,76 +1564,6 @@ class App(*_FEATURE_BASES, QWidget):
         vp.style().unpolish(vp)
         vp.style().polish(vp)
 
-    # ---------- SER 更新通道彩蛋(1.2.4) ----------
-    def _open_terminal(self):
-        """底栏标记连点达标:弹出命令提示符风格的更新控制台(非模态)"""
-        w = getattr(self, "_term", None)
-        if w is None:
-            w = TermWindow(self, already_ser=self._ser)
-            w.updated.connect(self._on_ser_updated)
-            self._term = w
-        w.show()
-        w.raise_()
-        w.activateWindow()
-
-    def _on_ser_updated(self):
-        """控制台更新完成:切到 SER 通道(版本标识 + 纯黑底图标),重启保留"""
-        if not self._ser:
-            self._ser = True
-            self._disp_ver = SER_VER
-            try:
-                self._settings.setValue("ser_updated", "true")
-            except Exception:
-                pass
-        self._apply_ser_mode()
-
-    def _apply_ser_mode(self):
-        """SER 通道外观:窗口/任务栏图标换纯黑底变体,三处版本标识同步"""
-        ico = _res_path(os.path.join("icon", "app_ser.ico"))
-        if os.path.exists(ico):
-            self.setWindowIcon(QIcon(ico))
-        for attr, fmt in (("ver_label", "v{}"),
-                          ("_home_ver_lbl", "{}"),
-                          ("_about_ver_lbl", "{}")):
-            w = getattr(self, attr, None)
-            if w is None:
-                continue
-            try:
-                w.setText(fmt.format(SER_VER))
-            except RuntimeError:
-                pass
-
-    # ---------- SER 本体图标自维护 ----------
-    def _ser_icon_housekeeping(self):
-        """已是 1.2.ser 时的本体图标收尾(后台,不卡启动)。
-
-        1) 清理上次自替换留下的 <exe>.old 备份 —— 能走到这一步说明
-           当前(改写后的)本体已成功启动,旧备份没有保留价值。
-        2) 本体文件图标和当前 ser 状态不一致时(老构建、图标被换回过、
-           上次改写中途失败……)静默补一次替换。判断依据是**实际资源
-           字节**(_exe_icon_is_ser),不是注册表标志 —— 标志会说谎:
-           exe 被还原成 1.2.4 了,icon_patched 还留着一个 true。
-           改写/换名是纯 OS 调用,放到后台线程不冻结界面。
-        """
-        if not getattr(sys, "frozen", False):
-            return
-        exe = sys.executable
-        old = exe + ".old"
-        if os.path.exists(old):
-            try:
-                os.remove(old)
-            except OSError:
-                pass                      # 被占用就留下,下次再清
-
-        def _worker():
-            st, _msg = swap_exe_icon_to_ser()
-            if st in ("ok", "skip"):
-                try:
-                    # 后台线程用独立实例(QSettings 可重入,但不共享对象)
-                    settings_store().setValue("icon_patched", "true")
-                except Exception:
-                    pass
-        threading.Thread(target=_worker, daemon=True).start()
     # ---------- 页面切换 ----------
     def go(self, key):
         pg = self._feature_pages.get(key)

@@ -68,9 +68,6 @@ APP_VER = "1.3.0"
 STUDIO_NAME = "CHStudios"
 
 
-SER_VER = "1.3.ser"       # 更新目标版本号
-
-
 class GlassPanel(QFrame):
     """液态玻璃面板:上亮下暗 + 镜面高光描边 + 底部反光 + 光标光泽"""
 

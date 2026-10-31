@@ -39,8 +39,8 @@ from ctypes import wintypes
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-OUT = os.path.join(ROOT, "截图")
-from _paths import exe_path as _exe_path        # 1.2.7 起产物是 onedir 目录
+from _paths import exe_path as _exe_path, shots_dir as _shots_dir
+OUT = _shots_dir()
 
 EXE = _exe_path()
 

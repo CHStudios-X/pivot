@@ -30,3 +30,10 @@ def apps_dir():
 def app_dir():
     """程序目录（onedir 下是含 _internal\\ 的那层）。"""
     return os.path.dirname(exe_path())
+
+
+def shots_dir():
+    """测试截图输出目录（tests\\_shots\\，已在 .gitignore 里）。"""
+    d = os.path.join(ROOT, "tests", "_shots")
+    os.makedirs(d, exist_ok=True)
+    return d

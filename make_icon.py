@@ -2,9 +2,8 @@
 """
 生成应用图标:多尺寸 ICO(16/24/32/48/64/128/256) + 方案对比预览
 
-1.2.4 起底座统一为**纯黑**(#000000)+ 白色符号,小尺寸自动简化细节 ——
-黑底在深色任务栏 / 资源管理器里辨识度最高,且与 SER 更新通道的图标一致
-(主图标本就是黑的,exe 打包出来的图标资源即黑底,连更新流程都无需改写)。
+底座统一为**纯黑**(#000000)+ 白色符号,小尺寸自动简化细节 ——
+黑底在深色任务栏 / 资源管理器里辨识度最高。
 不依赖 Pillow —— ICO 用 PNG payload 自己拼(Windows Vista+ 支持)。
 """
 
@@ -39,8 +38,7 @@ PLATE_BLACK = True
 def _base_plate(p, s, black=False):
     """圆角方块底座 + 渐变 + 顶部高光,返回 path
 
-    black=True 时底座是纯黑 #000000(SER 更新通道的图标变体),
-    白盒符号 + 描边不变,保证在深色任务栏/资源管理器里仍清晰。
+    白盒符号 + 描边在纯黑底上仍然清晰,这是选黑底的原因。
     """
     pad = s * 0.035
     rect = QRectF(pad, pad, s - 2 * pad, s - 2 * pad)
@@ -279,22 +277,13 @@ def main():
             f.write(data)
         print(f"[{key:<7}] {label:<6} {len(data):>7} bytes  -> {path}")
 
-    # 主图标 = 敞开盒子(与软件名「工具盒子」同义;旧版点击波纹留作备选)
-    # 1.2.4 起底座是纯黑,box.ico 自身即黑底,直接拿来当主图标
+    # 主图标 = 敞开盒子(旧版「工具盒子」的具象;改名后保留为品牌图形)
+    # 底座是纯黑,box.ico 自身即黑底,直接拿来当主图标
     with open(os.path.join(OUT, "box.ico"), "rb") as f:
         main_data = f.read()
     with open(os.path.join(OUT, "app.ico"), "wb") as f:
         f.write(main_data)
     print(f"[app.ico] 主图标已就位 ({len(main_data)} bytes · 纯黑底)")
-
-    # SER 更新通道图标:与主图标同一套黑底盒子。
-    # 主图标已是黑的 -> 打包出的 exe 图标资源天然与它一致 ->
-    # swap_exe_icon_to_ser 会直接判定"已是 SER"并跳过,**不再改动本体文件**。
-    # 保留这份文件是为了给"是否已是 SER"提供一个稳定的比对基准。
-    ser_imgs = [make_image(s, "box") for s in SIZES]
-    with open(os.path.join(OUT, "app_ser.ico"), "wb") as f:
-        f.write(build_ico(ser_imgs))
-    print(f"[app_ser.ico] SER 图标已就位 (纯黑底)")
 
 
 if __name__ == "__main__":

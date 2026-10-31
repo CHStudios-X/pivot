@@ -77,7 +77,6 @@ Write-Host "[4/4] Running PyInstaller..."
 # --icon    : 写入 exe 自身的图标资源(资源管理器/任务栏)
 # --add-data: 把 ico / 背景图打进包内,运行时用 _res_path() 定位
 $icoPath = Join-Path $projectDir "icon\app.ico"
-$serIcoPath = Join-Path $projectDir "icon\app_ser.ico"
 $bgPath  = Join-Path $projectDir "assets\bg.jpg"
 $appsDir = Join-Path $projectDir "apps"
 if (!(Test-Path $bgPath)) { throw "missing background image: $bgPath" }
@@ -100,7 +99,6 @@ if (Test-Path $appsCache) { Remove-Item -Recurse -Force $appsCache }
     --name pivot `
     --icon $icoPath `
     --add-data "$icoPath;icon" `
-    --add-data "$serIcoPath;icon" `
     --add-data "$bgPath;assets" `
     --add-data "$appsDir;apps" `
     --collect-all pyautogui `

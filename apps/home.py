@@ -39,6 +39,7 @@ from PySide6.QtWidgets import (
 from pivot_kit import (
     APP_NAME,
     APP_NAME_EN,
+    APP_VER,
     ToolCard,
 )
 
@@ -93,9 +94,8 @@ class Feature:
         vr = QVBoxLayout()
         vr.setSpacing(0)
         vr.addStretch(1)
-        vlab = QLabel(self._disp_ver)
+        vlab = QLabel(APP_VER)
         vlab.setObjectName("verBig")
-        self._home_ver_lbl = vlab
         vlab.setAlignment(Qt.AlignmentFlag.AlignRight
                           | Qt.AlignmentFlag.AlignVCenter)
         vr.addWidget(vlab)

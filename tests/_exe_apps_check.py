@@ -94,7 +94,7 @@ def run_case(files, label, expect_nav, expect_switch):
         if expect_switch:
             check(f"{label}：页面仍能正常切换", switched is True,
                   f"switched={switched}")
-        img.save(os.path.join(ROOT, "截图", f"exe_apps_{label}.png"))
+        img.save(os.path.join(P.OUT, f"exe_apps_{label}.png"))
         P.u32.PostMessageW(hwnd, P.WM_CLOSE, 0, 0)
         P.pump(1.2)
         P.kill_all()

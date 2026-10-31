@@ -28,8 +28,7 @@ def check(name, cond, detail=""):
           + (f"  —— {detail}" if detail else ""))
 
 
-KEYS = ("kb_count", "kb_interval", "remap_map", "remap_on",
-        "ser_updated", "icon_patched")
+KEYS = ("kb_count", "kb_interval", "remap_map", "remap_on")
 _st = QSettings("Pivot", "Pivot")
 _BACKUP = {k: (_st.contains(k), _st.value(k) if _st.contains(k) else None)
            for k in KEYS}

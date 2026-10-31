@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 from pivot_kit import (
     APP_NAME,
     APP_NAME_EN,
+    APP_VER,
     HotkeyButton,
     PillButton,
     STUDIO_NAME,
@@ -77,12 +78,9 @@ class Feature:
         about, al = self._panel(spacing=11, margins=(20, 16, 20, 18))
         al.addWidget(self._title("关于"))
         for k, v in (("名称", f"{APP_NAME} {APP_NAME_EN}"),
-                     ("版本", self._disp_ver),
+                     ("版本", APP_VER),
                      ("出品", STUDIO_NAME)):
-            row = self._kv(k, v)
-            if k == "版本":        # SER 更新后要原地改字,留个引用
-                self._about_ver_lbl = row.layout().itemAt(1).widget()
-            al.addWidget(row)
+            al.addWidget(self._kv(k, v))
         lay.addWidget(about)
 
         hk, hkl = self._panel(spacing=10, margins=(20, 16, 20, 18))
