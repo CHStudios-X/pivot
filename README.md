@@ -41,7 +41,7 @@
 
 ## 下载
 
-到 **[Releases](https://github.com/你的账号/pivot/releases)** 页下载最新版：
+到 **[Releases](https://github.com/CHStudios-X/pivot/releases)** 页下载最新版：
 
 - **安装包** `Pivot_Setup_x.y.z.exe` —— 推荐。约 35 MB，用户级安装（装到 `%LOCALAPPDATA%\Programs\Pivot`），**不需要管理员权限**。
   安装时可勾选「以管理员身份运行运行」，全局热键需要它。
@@ -52,7 +52,7 @@
 ## 从源码运行
 
 ```powershell
-git clone https://github.com/你的账号/pivot.git
+git clone https://github.com/CHStudios-X/pivot.git
 cd pivot
 
 python -m venv .venv

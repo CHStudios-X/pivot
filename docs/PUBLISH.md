@@ -2,24 +2,29 @@
 
 以发布 `1.3.1` 为例，全程在仓库根目录执行。
 
-## 0. 首次开源前的一次性替换
+## 0. 换成你自己的仓库（可选）
 
-这份仓库是从本地工程整理出来的，有几处占位符要换成你自己的：
+这份仓库默认指向 **`CHStudios-X/pivot`**，地址已经写进源码，开箱即用。
 
-| 位置 | 占位符 | 改成 |
+如果你 fork 到了别的账号，改这几处：
+
+| 位置 | 内容 | 改成 |
 |---|---|---|
-| `README.md` | `你的账号`（下载链接与 clone 命令，共 2 处） | 你的 GitHub 用户名 |
-| `updater_core.py` | `REPLACE_ME`（2 处） | 账号名 |
-| `build.ps1` | `REPLACE_ME`（1 处） | 账号名 |
-| `LICENSE` | `CHStudios` | 你的名字或组织名 |
-| `installer.iss` | `MyAppPublisher` / `AppId` | 出品方名；AppId 换一个新的 GUID |
+| `README.md` | `CHStudios-X`（下载链接与 clone 命令，共 2 处） | 你的 GitHub 用户名 |
+| `updater_core.py` | `CHStudios-X`（2 处 URL） | 账号名 |
+| `build.ps1` | `CHStudios-X`（1 处） | 账号名 |
+| `LICENSE` / `pivot_kit.py` / `installer.iss` | `CHStudios` | 你的名字或组织名 |
+| `installer.iss` | `AppId` | 换一个新的 GUID，否则会和原版互相覆盖 |
 
 ```powershell
 # 全局搜一遍还有没有漏的
-git grep -n "REPLACE_ME\|你的账号"
+git grep -n "CHStudios-X"
 ```
 
-改完记得 `git commit`，然后继续下面的流程。
+改完记得 `git commit`，并**重新打包一次** —— 地址是在打包时写进 exe 的。
+
+> 留 `REPLACE_ME` 占位符时程序不会崩，更新页会显示「更新源尚未配置」，
+> 而不会假装"已是最新"。
 
 ## 1. 改版本号（只改一处）
 
@@ -41,26 +46,7 @@ APP_VER = "1.3.1"
 加：连点器支持每分钟次数上限
 ```
 
-## 3. 配好你的仓库地址（只做一次）
-
-两处要改，都在 `updater_core.py` 顶部：
-
-```python
-UPDATE_MANIFEST_URL = (
-    "https://raw.githubusercontent.com/你的账号/pivot/main/update/version.json")
-UPDATE_BASE_URL = "https://github.com/你的账号/pivot/releases/download"
-```
-
-`build.ps1` 里还有一个同样的地址（用于生成清单里的附件绝对地址）：
-
-```powershell
-$UpdateBaseUrl = "https://github.com/你的账号/pivot/releases/download"
-```
-
-改完之后**要重新打包一次**，地址才会写进 exe。留 `REPLACE_ME` 时更新页会显示
-「更新源尚未配置」，不会假装"已是最新"。
-
-## 4. 出包
+## 3. 出包
 
 ```powershell
 .\build_installer.ps1
@@ -75,7 +61,7 @@ dist\update\Pivot_1.3.1_win64.zip 更新包
 dist\update\version.json          清单
 ```
 
-## 5. 发 Release
+## 4. 发 Release
 
 在 GitHub 上新建 Release，tag 用 `v1.3.1`，然后上传两个附件：
 
@@ -85,7 +71,7 @@ dist\update\version.json          清单
 > 附件地址要和清单里的 `url` 拼得上。`make_update.py` 生成的是
 > `v1.3.1/Pivot_1.3.1_win64.zip`，所以 tag 名必须是 `v1.3.1`。
 
-## 6. 提交新清单
+## 5. 提交新清单
 
 把 `dist\update\version.json` 复制到仓库的 `update\` 目录并提交：
 

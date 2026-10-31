@@ -23,8 +23,8 @@ if (Get-Command py.exe -ErrorAction SilentlyContinue) {
 
 # ---------- 自动更新：发布参数 ----------
 # Release 附件的下载前缀（拼 version.json 里的绝对地址）。
-# 换成你自己的仓库后，客户端就能直接下载；留 REPLACE_ME 则只出包不发布。
-$UpdateBaseUrl = "https://github.com/REPLACE_ME/pivot/releases/download"
+# fork 后换成你自己的仓库；留占位符则只出包不发布。
+$UpdateBaseUrl = "https://github.com/CHStudios-X/pivot/releases/download"
 
 Set-Location $projectDir
 

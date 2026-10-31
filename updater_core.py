@@ -9,8 +9,8 @@
 属于程序自身，不该跟着某个可选功能一起消失。
 
 ---- 更新源 --------------------------------------------------------------
-默认指向 GitHub，**把两处 REPLACE_ME 换成你自己的账号/仓库**即可启用
-（不改也不会崩：检测时会明确提示"更新源尚未配置"，而不是假装"已是最新"）：
+默认指向 GitHub 上的 CHStudios-X/pivot 仓库。**fork 或换仓库时改下面两处地址**即可
+（留占位符也不会崩：检测时会明确提示"更新源尚未配置"，而不是假装"已是最新"）：
 
     UPDATE_MANIFEST_URL   version.json 的 raw 直链
     UPDATE_BASE_URL       Release 附件的下载前缀
@@ -59,10 +59,10 @@ import zipfile
 
 IS_WIN = os.name == "nt"
 
-# ---- 更新源（把两处 REPLACE_ME 换成你自己的账号/仓库） ----------------
+# ---- 更新源（fork 后改成你自己的账号/仓库） ---------------------------
 UPDATE_MANIFEST_URL = (
-    "https://raw.githubusercontent.com/REPLACE_ME/pivot/main/update/version.json")
-UPDATE_BASE_URL = "https://github.com/REPLACE_ME/pivot/releases/download"
+    "https://raw.githubusercontent.com/CHStudios-X/pivot/main/update/version.json")
+UPDATE_BASE_URL = "https://github.com/CHStudios-X/pivot/releases/download"
 
 MANIFEST_ENV = "PIVOT_UPDATE_URL"       # 覆盖清单地址（测试用）
 # 1.2.x 叫 TOOLBOX_UPDATE_URL，旧脚本/旧批处理还认它（新名优先）
