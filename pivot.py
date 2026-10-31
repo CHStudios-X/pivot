@@ -44,6 +44,7 @@ from PySide6.QtCore import (
 )
 from PySide6.QtGui import (
     QFont, QColor, QPainter, QPen, QBrush, QLinearGradient, QRadialGradient,
+    QConicalGradient,
     QFontDatabase, QFontMetricsF, QPainterPath, QCursor, QIcon, QPixmap,
 )
 from PySide6.QtWidgets import (
@@ -833,7 +834,7 @@ def splash_spark_pulse(t):
 
 
 class SplashOverlay(QWidget):
-    """启动闪屏:纯字母 wordmark 的入场 —— 主字弹出 + 副字擦出 + 柔光脉冲 + 进度光带。
+    """启动闪屏:纯字母 wordmark 的入场 —— 主字弹出 + 副字擦出 + 柔光脉冲 + 圆环 spinner。
 
     只用一个 0→1 的 progress 动画驱动,paintEvent 内按时间段自己算缓动 ——
     比堆十几个并行动画好调，也不会出现"删 effect 时还在跑"的时序问题。
@@ -843,7 +844,7 @@ class SplashOverlay(QWidget):
       0.10 主字 CH 带一点回弹弹出
       0.30 副字 Studios 从主字右侧擦出(两段间距同时展开)
       0.46 主字亮起一圈柔光脉冲
-      0.58 底部进度光带开始走
+      0.58 底部圆环 spinner 开始转(顺时针,一直转到淡出结束)
       0.64 末尾那点光「亮一下」(胀一下再收回,与光带收尾重叠)
     """
 
@@ -967,33 +968,40 @@ class SplashOverlay(QWidget):
             p.setBrush(QBrush(gg))
             p.drawEllipse(QPointF(cx, cy), rr, rr)
 
-        # ---- 进度光带 ----
+        # ---- 加载指示:圆环 spinner ----
+        # 这里原来是条走到底就停住的横向光带,看着像"下载进度";改成圆环后
+        # 语义更准(只是在等启动,不是有确定进度)。仍然只由 _t 驱动,不新建
+        # 动画对象 —— 和这套闪屏"单进度 + 绘制内算缓动"的做法一致。
         bp = _clamp01((t - 0.58) / 0.42)
         if bp > 0.0:
-            bw = min(180.0, w * 0.40)
-            bh = 3.5
-            bx = cx - bw / 2.0
-            by = cy + mh * 1.9
-            p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QColor(255, 255, 255, 30))
-            p.drawRoundedRect(QRectF(bx, by, bw, bh), bh / 2, bh / 2)
+            a_in = _ease_out_cubic(min(1.0, bp / 0.22))    # 前段淡入,别硬出现
+            rr = max(9.0, mh * 0.62)
+            th = max(1.9, rr * 0.28)
+            bin_cy = cy + mh * 1.78 + rr                   # 顶上贴着原光带位置
+            box = QRectF(cx - rr, bin_cy - rr, rr * 2.0, rr * 2.0)
+            p.setBrush(Qt.BrushStyle.NoBrush)
 
-            e = _ease_out_cubic(bp)
-            fg = QLinearGradient(bx, 0, bx + bw, 0)
-            fg.setColorAt(0.0, QColor("#6FB4FF"))
-            fg.setColorAt(1.0, QColor("#A78BFA"))
-            p.setBrush(QBrush(fg))
-            p.drawRoundedRect(QRectF(bx, by, max(bh, bw * e), bh),
-                              bh / 2, bh / 2)
+            # 底环:一圈很淡的白,给圆环一条「轨道」,转起来才看得出在转
+            p.setPen(QPen(QColor(255, 255, 255, int(34 * a_in)), th,
+                          Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            p.drawEllipse(box)
 
-            # 行进光头部的柔光
-            if 0.03 < e < 0.98:
-                hx = bx + bw * e
-                hg = QRadialGradient(QPointF(hx, by + bh / 2), 16)
-                hg.setColorAt(0.0, QColor(255, 255, 255, 140))
-                hg.setColorAt(1.0, QColor(255, 255, 255, 0))
-                p.setBrush(QBrush(hg))
-                p.drawEllipse(QPointF(hx, by + bh / 2), 16, 16)
+            # 弧段:锥形渐变让尾端透明、头部最亮。head 角度随时间递减,
+            # 所以视觉上是**顺时针**转(load 图标的通行方向)。
+            # 色标按角度比例布点,别把亮点全挤在最后 10% —— 那样看着只是一小截。
+            span = 140.0
+            head = -90.0 - 360.0 * 3.2 * t
+            tail = head - span
+            cg = QConicalGradient(QPointF(box.center()), tail)
+            cg.setColorAt(0.000, QColor(167, 139, 250, int(58 * a_in)))   # 尾:压暗但不消失
+            cg.setColorAt(0.060, QColor(150, 160, 252, int(112 * a_in)))
+            cg.setColorAt(0.150, QColor(122, 178, 255, int(188 * a_in)))
+            cg.setColorAt(0.240, QColor(126, 176, 255, int(234 * a_in)))
+            cg.setColorAt(0.270, QColor(126, 176, 255, int(250 * a_in)))  # 头最亮
+            cg.setColorAt(0.276, QColor(126, 176, 255, 0))
+            p.setPen(QPen(QBrush(cg), th, Qt.PenStyle.SolidLine,
+                          Qt.PenCapStyle.RoundCap))
+            p.drawArc(box, int(tail * 16), int(span * 16))
 
 
 class WinBtn(QPushButton):
