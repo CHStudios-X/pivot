@@ -9,13 +9,22 @@
 属于程序自身，不该跟着某个可选功能一起消失。
 
 ---- 更新源 --------------------------------------------------------------
-默认指向 GitHub 上的 CHStudios-X/pivot 仓库。**fork 或换仓库时改下面两处地址**即可
+指向 GitHub 上的 CHStudios-X/pivot 仓库。**fork 或换仓库时改下面两处**即可
 （留占位符也不会崩：检测时会明确提示"更新源尚未配置"，而不是假装"已是最新"）：
 
-    UPDATE_MANIFEST_URL   version.json 的 raw 直链
-    UPDATE_BASE_URL       Release 附件的下载前缀
+    UPDATE_MANIFEST_URLS  version.json 的多个地址，按顺序尝试，第一个成功即用
+    UPDATE_BASE_URLS      Release 附件的下载前缀，同样按顺序回退
 
-步骤：仓库根建 update/ 目录放 version.json（随提交走 raw 直链），
+**为什么清单要多个地址**：`raw.githubusercontent.com` 在中国大陆不可达，
+而 GitHub 内容在国内只能靠 CDN 绕过去。所以清单优先走 jsDelivr
+（`fastly` 节点实测国内可连，0.4 s 左右），raw 只作海外兜底。
+
+**jsDelivr 有约 12 小时缓存**，发版后新清单不会立刻生效。要马上生效，
+用浏览器打开下面这个地址触发刷新（命令行里 purge.jsdelivr.net 有时不通）：
+
+    https://purge.jsdelivr.net/gh/CHStudios-X/pivot@main/update/version.json
+
+步骤：仓库根建 update/ 目录放 version.json（随提交走 CDN/raw），
       每次发版把它指向新的 Release 附件，见 docs/PUBLISH.md。
 
 也可以在**不重新打包**的前提下用环境变量覆盖（测试/内网分发用）：
@@ -60,9 +69,25 @@ import zipfile
 IS_WIN = os.name == "nt"
 
 # ---- 更新源（fork 后改成你自己的账号/仓库） ---------------------------
-UPDATE_MANIFEST_URL = (
-    "https://raw.githubusercontent.com/CHStudios-X/pivot/main/update/version.json")
-UPDATE_BASE_URL = "https://github.com/CHStudios-X/pivot/releases/download"
+# 清单：按顺序尝试，第一个拿到合法 JSON 的就用。
+# jsDelivr 的 fastly 节点在国内实测可达（~0.4 s）；raw 直连国内不通，只当海外兜底。
+UPDATE_MANIFEST_URLS = (
+    "https://fastly.jsdelivr.net/gh/CHStudios-X/pivot@main/update/version.json",
+    "https://jsdelivr.b-cdn.net/gh/CHStudios-X/pivot@main/update/version.json",
+    "https://raw.githubusercontent.com/CHStudios-X/pivot/main/update/version.json",
+)
+
+# 更新包：按顺序尝试。目前只有 GitHub Releases 一处 ——
+# 第三方下载加速站在 2026-10 实测全部失效（404/000），加进去只会拖慢失败。
+# 将来接了 Gitee / 自建镜像，往这个元组里加一行就行，其余代码不用动。
+UPDATE_BASE_URLS = (
+    "https://github.com/CHStudios-X/pivot/releases/download",
+)
+
+# 兼容旧名：外部脚本或 fork 可能只改这两个单值常量。
+# 只要它们被改成了别的地址，就以单值为准（见 _manifest_candidates / _base_candidates）。
+UPDATE_MANIFEST_URL = UPDATE_MANIFEST_URLS[0]
+UPDATE_BASE_URL = UPDATE_BASE_URLS[0]
 
 MANIFEST_ENV = "PIVOT_UPDATE_URL"       # 覆盖清单地址（测试用）
 # 1.2.x 叫 TOOLBOX_UPDATE_URL，旧脚本/旧批处理还认它（新名优先）
@@ -124,31 +149,69 @@ def app_dir():
     return os.path.dirname(os.path.abspath(__file__))
 
 
-def manifest_url():
+def _manifest_candidates():
+    """清单地址候选，按优先级排列。环境变量覆盖时只保留那一个。"""
     env = (os.environ.get(MANIFEST_ENV)
-           or os.environ.get(LEGACY_MANIFEST_ENV) or "")
-    return (env or UPDATE_MANIFEST_URL or "").strip()
+           or os.environ.get(LEGACY_MANIFEST_ENV) or "").strip()
+    if env:
+        return [env]
+    urls = UPDATE_MANIFEST_URLS
+    if isinstance(urls, str):
+        urls = (urls,)
+    out = [u.strip() for u in (urls or ()) if (u or "").strip()]
+    # fork 的人可能只改了单值常量 UPDATE_MANIFEST_URL，那就把它排到最前面
+    single = (UPDATE_MANIFEST_URL or "").strip()
+    if single and single not in out:
+        out.insert(0, single)
+    return out
+
+
+def manifest_urls():
+    """全部候选清单地址（第一个是最优选择）。"""
+    return _manifest_candidates()
+
+
+def manifest_url():
+    """首个候选地址 —— 界面与日志只需要展示一个。"""
+    urls = manifest_urls()
+    return urls[0] if urls else ""
+
+
+def _base_candidates():
+    """更新包下载前缀候选。"""
+    bs = UPDATE_BASE_URLS
+    if isinstance(bs, str):
+        bs = (bs,)
+    out = [b.strip().rstrip("/") for b in (bs or ()) if (b or "").strip()]
+    single = (UPDATE_BASE_URL or "").strip().rstrip("/")
+    if single and single not in out:
+        out.insert(0, single)
+    return out
+
+
+def _download_urls(rel):
+    """清单里允许写相对路径；返回该包所有可尝试的完整地址。"""
+    rel = (rel or "").strip()
+    if not rel:
+        return []
+    if rel.startswith(("http://", "https://")):
+        return [rel]
+    tail = rel.lstrip("/")
+    return [b + "/" + tail for b in _base_candidates()]
 
 
 def _abs_url(url):
-    """清单里允许写相对路径，这里补成完整地址。"""
-    url = (url or "").strip()
-    if not url:
-        return ""
-    if url.startswith(("http://", "https://")):
-        return url
-    return UPDATE_BASE_URL.rstrip("/") + "/" + url.lstrip("/")
+    """首个候选地址（保留给旧调用，等价于 _download_urls(url)[0]）。"""
+    urls = _download_urls(url)
+    return urls[0] if urls else ""
 
 
 # ---------------------------------------------------------------- 清单 --
-def fetch_manifest(url=None, timeout=8):
-    """拉取并校验清单。返回 (dict, "") 或 (None, 错误说明)。"""
-    url = (url or manifest_url()).strip()
-    if not url:
-        return None, "没有配置更新源"
+def _fetch_manifest_one(url, timeout=8):
+    """单个地址拉清单。返回 (dict, "") 或 (None, 错误说明)。"""
     if "REPLACE_ME" in url:
         # 还没换成自己的仓库 —— 别把 404 当成"已是最新"
-        return None, "更新源尚未配置（updater_core.UPDATE_MANIFEST_URL）"
+        return None, "更新源尚未配置（updater_core.UPDATE_MANIFEST_URLS）"
 
     req = urllib.request.Request(url, headers={
         "User-Agent": UA,
@@ -174,6 +237,29 @@ def fetch_manifest(url=None, timeout=8):
     return data, ""
 
 
+def fetch_manifest(url=None, timeout=8):
+    """按优先级依次尝试各清单地址，第一个成功的就用。
+
+    返回 (dict, "") 或 (None, 错误说明)。错误说明只保留最后一条，
+    避免把三个节点的失败原因全糊在界面上。
+    """
+    if url:
+        urls = [url.strip()]
+    else:
+        urls = manifest_urls()
+    if not urls:
+        return None, "没有配置更新源"
+
+    last = ""
+    for i, u in enumerate(urls):
+        # 备用源不必等满 timeout：主源已花掉一次，后面的尽快失败
+        data, err = _fetch_manifest_one(u, timeout if i == 0 else min(timeout, 5))
+        if data is not None:
+            return data, ""
+        last = err
+    return None, last
+
+
 def parse_manifest(data, local_ver):
     """把清单整理成 UpdateInfo；没有可用更新时返回 (None, 原因)。"""
     if not data:
@@ -185,8 +271,8 @@ def parse_manifest(data, local_ver):
         return None, ""
 
     pkg = (data.get("packages") or {}).get("full") or {}
-    url = _abs_url(pkg.get("url"))
-    if not url:
+    urls = _download_urls(pkg.get("url"))
+    if not urls:
         return None, "清单里没有 full 包的下载地址"
 
     sha = str(pkg.get("sha256") or "").strip().lower()
@@ -214,7 +300,8 @@ def parse_manifest(data, local_ver):
         "version": str(latest).lstrip("vV"),
         "notes": str(data.get("notes") or "").strip(),
         "date": str(data.get("date") or "").strip(),
-        "url": url,
+        "url": urls[0],
+        "urls": urls,
         "size": size,
         "sha256": sha,
         "apps": apps,
@@ -249,9 +336,28 @@ def download(url, dest, sha256=None, size=None, on_progress=None,
              cancel=None, timeout=20):
     """流式下载到 dest，边下边算 SHA256。
 
-    返回 (True, "") 或 (False, 错误说明)。任何失败都会把半截文件删掉 ——
+    url 可以是单个地址，也可以是候选地址列表；按顺序尝试，任一成功即返回。
+    返回 (True, "") 或 (False, 错误说明)。失败会把半截文件删掉 ——
     留着半截文件最危险，下次可能被当成"已下载好"。
     """
+    urls = [url] if isinstance(url, str) else [u for u in (url or []) if u]
+    if not urls:
+        return False, "没有下载地址"
+    last = ""
+    for u in urls:
+        ok, err = _download_one(u, dest, sha256=sha256, size=size,
+                                on_progress=on_progress, cancel=cancel,
+                                timeout=timeout)
+        if ok:
+            return True, ""
+        if err == "已取消":
+            return False, err
+        last = err
+    return False, last
+
+
+def _download_one(url, dest, sha256=None, size=None, on_progress=None,
+                  cancel=None, timeout=20):
     os.makedirs(os.path.dirname(os.path.abspath(dest)), exist_ok=True)
     digest = hashlib.sha256()
     done = 0

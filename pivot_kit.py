@@ -62,7 +62,7 @@ APP_NAME_EN = "PIVOT"
 # ★ 全项目**唯一**的版本号来源。
 #   安装脚本(installer.iss)与更新清单(version.json)都在构建时读这里，
 #   不要在别处再写一遍 —— 两处版本号不一致，自动更新第一次就会误判。
-APP_VER = "1.3.0"
+APP_VER = "1.3.1"
 
 
 STUDIO_NAME = "CHStudios"

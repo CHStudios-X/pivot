@@ -178,8 +178,10 @@ python tests\_install_test.py      # silent install → verify → uninstall →
 - The `keyboard` library installs a global hook, so some antivirus products flag it.
 - **Automated clicking may violate the terms of service of the target application or game, and may be
   detected by anti-cheat.** Use at your own risk.
-- The update source points at this repository's GitHub Releases. See [docs/PUBLISH.md](docs/PUBLISH.md)
-  for how to point it somewhere else.
+- The update manifest is read through jsDelivr (the `fastly` node, falling back to `b-cdn` and then
+  raw GitHub), so update checks work from mainland China. The package itself is still downloaded from
+  GitHub Releases; there is no mainland mirror for large files yet. See [docs/PUBLISH.md](docs/PUBLISH.md)
+  for how to point either one somewhere else.
 
 ## Contributing
 

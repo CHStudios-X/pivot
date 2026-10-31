@@ -158,8 +158,7 @@ class Feature:
     # ---------- 小工具 ----------
     @staticmethod
     def _upd_source_ready():
-        url = U.manifest_url()
-        return bool(url) and "REPLACE_ME" not in url
+        return any(u and "REPLACE_ME" not in u for u in U.manifest_urls())
 
     def _upd_set_hint(self, text, color=None):
         self.upd_hint.setText(text)
@@ -245,7 +244,7 @@ class Feature:
 
     def _upd_do_fetch(self, info, zip_path):
         ok, err = U.download(
-            info["url"], zip_path,
+            info.get("urls") or info["url"], zip_path,
             sha256=info.get("sha256") or None,
             size=info.get("size") or None,
             on_progress=lambda d, t: self._upd_bridge.progress.emit(d, t),

@@ -3,6 +3,33 @@
 Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 PATCH fixes bugs, MINOR adds features, MAJOR makes breaking structural changes.
 
+## 1.3.1 — 2026-10-31
+
+**Update checks now work from mainland China.**
+
+`raw.githubusercontent.com` is unreachable there, so the update page used to fail
+with a network error for anyone on a mainland connection — the feature was
+effectively dead in the region where most users are.
+
+- The manifest is fetched from a list of sources, tried in order: jsDelivr's
+  `fastly` node, jsDelivr's `b-cdn` node, then raw GitHub as an overseas fallback.
+  The first source returning valid JSON wins; if all of them fail the last error
+  is reported.
+- The download address is a list too. GitHub Releases is currently the only entry —
+  the third-party acceleration mirrors were all dead when tested (404 / timeout) —
+  but adding a mirror (Gitee, or your own host) is now a one-line change to
+  `UPDATE_BASE_URLS`, no other code touched.
+- `PIVOT_UPDATE_URL` still overrides everything with a single address, unchanged,
+  so existing test harnesses keep working.
+
+**If you are on 1.3.0:** that build has the raw GitHub address compiled in, so it
+cannot discover this update by itself. Download 1.3.1 once by hand; from then on
+update checks work normally.
+
+Note for maintainers: jsDelivr caches for roughly 12 hours. After publishing,
+open `https://purge.jsdelivr.net/gh/CHStudios-X/pivot@main/update/version.json`
+in a browser to force a refresh.
+
 ## 1.3.0 — 2026-10-30
 
 **Renamed: ToolBox → Pivot (枢).**

@@ -11,7 +11,7 @@
 | 位置 | 内容 | 改成 |
 |---|---|---|
 | `README.md` | `CHStudios-X`（下载链接与 clone 命令，共 2 处） | 你的 GitHub 用户名 |
-| `updater_core.py` | `CHStudios-X`（2 处 URL） | 账号名 |
+| `updater_core.py` | `CHStudios-X`（`UPDATE_MANIFEST_URLS` 里 3 个清单地址 + `UPDATE_BASE_URLS` 里 1 个下载前缀） | 账号名 |
 | `build.ps1` | `CHStudios-X`（1 处） | 账号名 |
 | `LICENSE` / `pivot_kit.py` / `installer.iss` | `CHStudios` | 你的名字或组织名 |
 | `installer.iss` | `AppId` | 换一个新的 GUID，否则会和原版互相覆盖 |
@@ -82,8 +82,17 @@ git commit -m "release: 1.3.1"
 git push
 ```
 
-客户端的静默检查读的是 `raw.githubusercontent.com/.../update/version.json`，
+客户端不再直连 raw：清单按 jsDelivr `fastly` → `jsdelivr.b-cdn.net` → raw 的顺序依次尝试，
 所以**这一步提交后，已安装的旧版本才会看到新版本**。
+
+jsDelivr 有约 12 小时缓存。想让新版立刻可见，提交后在浏览器打开一次：
+
+```
+https://purge.jsdelivr.net/gh/CHStudios-X/pivot@main/update/version.json
+```
+
+（`purge.jsdelivr.net` 在部分网络下命令行访问不通，用浏览器打开最省事。
+返回 `{"status":"finished"}` 之类就算刷新成功。）
 
 ## 清单长什么样
 
