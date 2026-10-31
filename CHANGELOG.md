@@ -1,72 +1,77 @@
-# 更新日志
+# Changelog
 
-版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)：`主.次.修订`。  
-「修订」修 bug，「次」加功能，「主」做不兼容的结构变更。
+Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
+PATCH fixes bugs, MINOR adds features, MAJOR makes breaking structural changes.
 
 ## 1.3.0 — 2026-10-30
 
-**改名：工具盒子 / ToolBox → 枢 / Pivot。**
+**Renamed: ToolBox → Pivot (枢).**
 
-改的是名字，不是产品：图标、界面布局、动效、功能一个没动。
+The name changed, not the product: icon, layout, animations and features are untouched.
 
-| 位置         | 1.2.x                                | 1.3.0                       |
-| ---------- | ------------------------------------ | --------------------------- |
-| 主程序        | `mouse_macro.exe`                    | `pivot.exe`                 |
-| 源码入口 / 公共件 | `mouse_macro.py` / `toolbox_kit.py`  | `pivot.py` / `pivot_kit.py` |
-| 设置         | `HKCU\Software\MouseMacro`           | `HKCU\Software\Pivot`       |
-| 安装目录       | `%LOCALAPPDATA%\Programs\MouseMacro` | `...\Programs\Pivot`        |
-| 安装包        | `MouseMacro_Setup_*`                 | `Pivot_Setup_*`             |
-| 安装包 AppId  | `{8F3A2C1E-…}`                       | `{35A1B8A4-…}`              |
+| Location | 1.2.x | 1.3.0 |
+| --- | --- | --- |
+| Executable | `mouse_macro.exe` | `pivot.exe` |
+| Entry / shared module | `mouse_macro.py` / `toolbox_kit.py` | `pivot.py` / `pivot_kit.py` |
+| Settings | `HKCU\Software\MouseMacro` | `HKCU\Software\Pivot` |
+| Install directory | `%LOCALAPPDATA%\Programs\MouseMacro` | `...\Programs\Pivot` |
+| Installer | `MouseMacro_Setup_*` | `Pivot_Setup_*` |
+| Installer AppId | `{8F3A2C1E-…}` | `{35A1B8A4-…}` |
 
-- **设置自动迁移**：新键为空时把旧键整份抄过来（热键、窗口位置、壁纸、连点参数），  
-  旧键保留不删，回退 1.2.x 仍可读。壁纸目录同样复制一份，不动原文件。
-- **注意**：AppId 换了，1.2.x 升级到 1.3.0 需要先卸载旧版，否则系统里会并存两个产品。  
-  这是唯一一次断代，之后 AppId 固定。
-- 本次起开源：MIT 许可证，构建脚本移除写死的本机路径。
-- **移除 SER 更新通道彩蛋**：底栏出品标记还原成纯展示控件（不再可点），  
-  命令提示符控制台、访问码校验、exe 图标自改写一并删除，`icon/app_ser.ico`  
-  随之移除。连带的好处是不再有任何「改写本体文件」的代码路径。
-- **启动闪屏的加载条改成圆环**：原来那条走到底就停住的横向光带像「下载进度」，  
-  换成一个顺时针旋转的圆环 spinner（底色轨道 + 锥形渐变弧段），语义上更接近  
-  「正在等你」。仍然只由闪屏那一个进度值驱动，没有引入新的动画对象。
+- **Settings migrate automatically**: when a new key is empty, the whole old key is copied over
+  (hotkeys, window position, wallpaper, clicker settings). The old key is kept, so rolling back
+  to 1.2.x still works. The wallpaper directory is duplicated the same way, leaving originals intact.
+- **Note**: the AppId changed, so upgrading from 1.2.x to 1.3.0 requires uninstalling the old
+  version first — otherwise both products coexist on the system. This is a one-time break;
+  the AppId is fixed from here on.
+- Open-sourced from this release: MIT license, and the build scripts no longer hardcode local paths.
+- **Splash screen progress bar replaced by a ring spinner**: the old horizontal light band that
+  simply stopped at the end read like a download progress bar. It is now a clockwise ring spinner
+  (dim track plus a conical-gradient arc), which better conveys "waiting for you". It is still
+  driven by the single splash progress value — no new animation object was introduced.
 
 ## 1.2.7 — 2026-10-30
 
-**自动更新**（检测 → 提示 → 下载 → 校验 → 替换 → 自重启）。
+**Auto-update** (check → prompt → download → verify → replace → restart).
 
-- 更新内核 `updater_core.py` 独立于 `apps\`，删空功能目录也不影响检查更新。
-- 清单 `version.json` 驱动；SHA256 校验；防 zip slip 的路径检查。
-- **打包方式从 `--onefile` 改为 `--onedir`**。旧方式每次启动都把整包解压到  
-  `%TEMP%\_MEIxxxxxx`，被 `taskkill` 或崩溃时残留不清 —— 实测累积 112 个目录、  
-  12.5 GB，直接把 C 盘撑满。onedir 原地运行，不解压、零残留。
-- 更新时不会把用户手动删掉的功能装回来（靠 `_apps_state.json` 区分「用户删的」与「新版新增的」）。
+- The update core `updater_core.py` lives outside `apps\`, so emptying the feature directory
+  doesn't break update checks.
+- Driven by a `version.json` manifest; SHA256 verification; path checks against zip slip.
+- **Packaging switched from `--onefile` to `--onedir`**. The old scheme unpacked the whole bundle
+  into `%TEMP%\_MEIxxxxxx` on every launch; when killed by `taskkill` or a crash, the leftovers
+  were never cleaned up — 112 directories, 12.5 GB in total, filling the C: drive completely.
+  onedir runs in place: no unpacking, no leftovers.
+- Updates no longer reinstall features the user deleted on purpose (an `_apps_state.json` file
+  distinguishes "deleted by the user" from "added in the new version").
 
-## 1.2.6 修正 — 2026-10-05
+## 1.2.6 — fix — 2026-10-05
 
-- 修：**按键改绑的录制框录不进任何键**，只能用默认的 `4` / `T`。  
-  根因是控件只发信号、自己不存值，且改绑页漏连了信号。改为控件自持状态 + 页面补连。
-- 补了 `tests\_remap_ui_check.py`，真发 `QKeyEvent` 走一遍录制框。
+- Fix: **the key-remap recorder accepted no key at all**, only the default `4` / `T`.
+  The widget emitted signals but kept no state, and the remap page never connected the signal.
+  Fixed by making the widget hold its own state and connecting the signal in the page.
+- Added `tests\_remap_ui_check.py`, which sends real `QKeyEvent`s through the recorder.
 
 ## 1.2.6 — 2026-10-05
 
-**功能模块化**：全部功能拆进 `apps\`，一个文件一个功能。
+**Feature modularisation**: everything moved into `apps\`, one file per feature.
 
-- 外壳从 5291 行瘦到约 2300 行；新增 `pivot_kit.py` 放公共件。
-- 四层容错装载：文件缺失 / 导入异常 / 构建异常 / 契约非法，都只影响单个功能。
-- 删除 `apps\` 下任意文件，对应功能从底栏与主页消失，其余照常。
+- The shell shrank from 5291 lines to roughly 2300; `pivot_kit.py` now holds the shared widgets.
+- Four layers of fault-tolerant loading: missing file / import error / build error / invalid
+  contract — each affects only a single feature.
+- Deleting any file under `apps\` removes that feature from the sidebar and home page,
+  and everything else keeps working.
 
 ## 1.2.5 — 2026-10-05
 
-- 删除「定时截图」。
-- 新增**键盘连按**：虚拟键盘选键，每个键单独设次数。
-- 新增**按键改绑**：全局键位映射。
+- Removed the scheduled-screenshot tool.
+- Added **keyboard auto-repeat**: pick keys on an on-screen keyboard, set a count per key.
+- Added **key remapping**: global key-to-key mapping.
 
 ## 1.2.4 — 2026-09-26
 
-- 底栏出品标记加大；新增 SER 更新通道彩蛋（1.3.0 已移除，见上）。
-- 图标全部改为纯黑底。
-- 修：图标自替换会截断本体文件的致命 bug。
+- Enlarged the credit mark in the bottom bar.
+- All icons switched to a solid black background.
 
 ---
 
-1.2.4 之前的版本没有留存更新记录。
+Versions before 1.2.4 have no changelog.
