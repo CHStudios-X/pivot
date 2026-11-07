@@ -30,6 +30,9 @@
   #define MyAppVersion  "1.2.7"
 #endif
 #define MyAppPublisher  "CHStudios"
+; 版权信息 —— 同时写进安装包的 VersionInfoCopyright（资源管理器「属性 → 详细信息」）
+; 和卸载项的发布者字段。年份取首个开源版本的发布年。
+#define MyAppCopyright  "Copyright (C) 2026 CHStudios. All rights reserved."
 #define MyAppExeName    "pivot.exe"
 #define ProdDir         "dist"
 #define DocDir          "docs"
@@ -40,9 +43,13 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppCopyright={#MyAppCopyright}
 VersionInfoVersion={#MyAppVersion}.0
+VersionInfoCompany={#MyAppPublisher}
 VersionInfoDescription={#MyAppName} 安装程序
 VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppVersion}
+VersionInfoOriginalFileName=Pivot_Setup_{#MyAppVersion}.exe
 DefaultDirName={autopf}\{#MyAppNameEn}
 DefaultGroupName={#MyAppName}
 OutputDir={#ProdDir}

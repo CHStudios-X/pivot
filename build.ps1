@@ -73,8 +73,53 @@ $oldAppDir = Join-Path $outDir "pivot"
 if (Test-Path $oldAppDir) { Remove-Item -Recurse -Force $oldAppDir }
 
 Write-Host "[4/4] Running PyInstaller..."
+
+# ---------- exe 版本资源 ----------
+# 资源管理器「属性 → 详细信息」里的公司/产品/版权/文件说明来自这段。
+# 不设的话四个字段全空，任务管理器里只会显示一个没描述的 pivot.exe。
+# 版本号从上面读到的 $appVer 现拆现填，不在这里维护第二份。
+$viDir  = Join-Path $projectDir "build"
+if (!(Test-Path $viDir)) { New-Item -ItemType Directory -Force -Path $viDir | Out-Null }
+$viPath = Join-Path $viDir "version_info.txt"
+$vp = @($appVer -split '\.' | ForEach-Object { [int]$_ })
+while ($vp.Count -lt 4) { $vp += 0 }
+$vTuple = ($vp[0..3] -join ", ")
+$viText = @"
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=($vTuple),
+    prodvers=($vTuple),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable('080404b0', [
+        StringStruct('CompanyName', 'CHStudios'),
+        StringStruct('FileDescription', '枢 Pivot'),
+        StringStruct('FileVersion', '$($appVer).0'),
+        StringStruct('InternalName', 'pivot'),
+        StringStruct('LegalCopyright', 'Copyright (C) 2026 CHStudios. All rights reserved.'),
+        StringStruct('OriginalFilename', 'pivot.exe'),
+        StringStruct('ProductName', '枢'),
+        StringStruct('ProductVersion', '$appVer')
+      ])
+    ]),
+    VarFileInfo([VarStruct('Translation', [2052, 1200])])
+  ]
+)
+"@
+# 必须 UTF-8 无 BOM：PyInstaller 用 utf-8 解码这段文本，BOM 会留在首行
+[System.IO.File]::WriteAllText($viPath, $viText, (New-Object System.Text.UTF8Encoding($false)))
+Write-Host "    版本资源 -> $viPath (v$appVer)"
+
 # 注意: 不要加 --collect-all PySide6,会让体积从 ~46MB 暴增到 ~240MB
 # --icon    : 写入 exe 自身的图标资源(资源管理器/任务栏)
+# --version-file: 写入 exe 的版本资源(属性页的公司/产品/版权)
 # --add-data: 把 ico / 背景图打进包内,运行时用 _res_path() 定位
 $icoPath = Join-Path $projectDir "icon\app.ico"
 $bgPath  = Join-Path $projectDir "assets\bg.jpg"
@@ -98,6 +143,7 @@ if (Test-Path $appsCache) { Remove-Item -Recurse -Force $appsCache }
     --distpath "$outDir" `
     --name pivot `
     --icon $icoPath `
+    --version-file $viPath `
     --add-data "$icoPath;icon" `
     --add-data "$bgPath;assets" `
     --add-data "$appsDir;apps" `

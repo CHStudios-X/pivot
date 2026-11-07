@@ -3,6 +3,21 @@
 Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 PATCH fixes bugs, MINOR adds features, MAJOR makes breaking structural changes.
 
+## 1.3.2 — 2026-11-07
+
+**The binaries now carry proper file metadata.**
+
+Windows Explorer, Task Manager and the uninstall entry used to show a blank
+copyright, and `pivot.exe` had no product name or company at all — Task Manager
+listed it as an undescribed process.
+
+- `pivot.exe` gets a full version resource: company, file description, product
+  name, file/product version, legal copyright and original filename
+- The installer gains `AppCopyright` plus the missing `VersionInfoCompany`,
+  `VersionInfoProductVersion` and `VersionInfoOriginalFileName`
+- `build.ps1` generates the version resource from `APP_VER` at build time, so
+  the version still lives in exactly one place
+
 ## 1.3.1 — 2026-10-31
 
 **Update checks now work from mainland China.**
